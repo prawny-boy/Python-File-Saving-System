@@ -1,6 +1,5 @@
 """Manipulate text in files for saving, loading and reading."""
 from typing_extensions import TypeAlias
-import hashlib
 from os import walk, getcwd, path
 
 __all__ = [
