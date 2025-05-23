@@ -1,0 +1,13 @@
+*nelson*
+stats:
+health|220
+attack|2
+weight|90
+type|ground
+special:
+1|big
+
+2|fat
+
+*sean*
+!ignore
