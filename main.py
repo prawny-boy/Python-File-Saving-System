@@ -1,2 +1,3 @@
 import filesave
-print(filesave.data)
+
+print(filesave.data, filesave.file_settings)

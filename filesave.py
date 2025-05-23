@@ -28,6 +28,7 @@ filename = "" # this is the file that will be used to save the data
 only_read = False # if set to True, it will only read the file and not write to it, all writing functions will be disabled
 data = "" # this is the variable that stores all the data in the file, it is a dictionary with the following format:
 encoding = False # not implemented
+file_settings = {} # not implemented
 
 class FileReadOnly(Exception):
     """Exception raised when trying to write to a read-only file."""
@@ -50,17 +51,25 @@ def _get_file_contents(filename:str) -> list[str]:
     contents = contents.splitlines()
     return contents
 
-def _get_all_data() -> dict[str, dict[str, dict[str, _Data]]]:
+def _get_all() -> dict[str, dict[str, dict[str, _Data]]]:
     """Gets all the data in the save file and outputs it as a dictionary.
 
     Order Headers -> Data Blocks -> Data
     """
     contents = _get_file_contents(filename)
     data:dict[str, dict[str, dict[str, list]]] = {} # first dict is the header and the second is the data blocks
+    settings_string = ""
     current_header = None
     current_data_block = None
     for line in contents:
-            if line.startswith('*') and line.endswith('*'):
+            line = line.strip()
+            if line.startswith('!') or line == "":
+                # special cases
+                continue
+            if (line.startswith('(') and line.endswith(')')):
+                # settings
+                settings_string = line[1:-1]
+            elif line.startswith('*') and line.endswith('*'):
                 # header
                 current_header = line[1:-1]
                 data[current_header] = {}
@@ -80,12 +89,12 @@ def _get_all_data() -> dict[str, dict[str, dict[str, _Data]]]:
                         raise FileParsingError(f"Data in incorrect format: {line}")
                     data[current_header][current_data_block][split_data[0]] = split_data[1:]
 
-    return data
+    return data, settings_string
 
-def _update_data():
+def _update_variables():
     """Updates the save_data variable using the save file."""
-    global data
-    data = _get_all_data()
+    global data, file_settings
+    data, file_settings = _get_all()
 
 def _update_file_contents(filename:str, contents:list[str]):
     """Updates the contents of the specified file."""
@@ -97,17 +106,25 @@ def _update_file_contents(filename:str, contents:list[str]):
 def _file_search():
     """Searches for text files in the current directory and its subdirectories, setting the save file to the first one found."""
     global filename
+    all_text_files = []
     for root, _, files in walk(getcwd()):
         for file in files:
             if file.endswith('.txt'):
-                filename = path.join(root, file)
-                return  # Exit once the first file is found
+                with open(path.join(root, file), 'r') as f:
+                    contents = f.read()
+                if contents.startswith('!SAVE'):
+                    filename = path.join(root, file)
+                    return  # Exit once the first file is found
+                else:
+                    all_text_files.append(path.join(root, file))
 
-    if filename == "":
+    if all_text_files:
+        filename = all_text_files[0]
+    else:
         print("WARNING: No text file found in the current directory or subdirectories.")
 
 _file_search()
-_update_data()
+_update_variables()
 
 # READING FROM FILE ----------------------------------------------------------------------
 
