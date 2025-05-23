@@ -1,6 +1,7 @@
-"""Manipulate text in files for saving and loading."""
+"""Manipulate text in files for saving, loading and reading."""
 from typing_extensions import TypeAlias
 import hashlib
+from os import walk, getcwd, path
 
 __all__ = [
     'new_header',
@@ -24,9 +25,9 @@ TYPE_PREFIXES:dict[type, str] = {
 
 _Data: TypeAlias = str|int|float|list|dict|tuple|bool
 
-filename = 'stats.txt'
+filename = "" # this is the file that will be used to save the data
 only_read = False # if set to True, it will only read the file and not write to it, all writing functions will be disabled
-save_data = "" # this is the variable that stores all the data in the file, it is a dictionary with the following format:
+data = "" # this is the variable that stores all the data in the file, it is a dictionary with the following format:
 encoding = False # not implemented
 
 class FileReadOnly(Exception):
@@ -84,10 +85,8 @@ def _get_all_data() -> dict[str, dict[str, dict[str, _Data]]]:
 
 def _update_data():
     """Updates the save_data variable using the save file."""
-    global save_data
-    save_data = _get_all_data()
-
-_update_data()
+    global data
+    data = _get_all_data()
 
 def _update_file_contents(filename:str, contents:list[str]):
     """Updates the contents of the specified file."""
@@ -95,6 +94,21 @@ def _update_file_contents(filename:str, contents:list[str]):
         raise FileReadOnly
     with open(filename, 'w') as file:
         file.write('\n'.join(contents))
+
+def _file_search():
+    """Searches for text files in the current directory and its subdirectories, setting the save file to the first one found."""
+    global filename
+    for root, _, files in walk(getcwd()):
+        for file in files:
+            if file.endswith('.txt'):
+                filename = path.join(root, file)
+                return  # Exit once the first file is found
+
+    if filename == "":
+        print("WARNING: No text file found in the current directory or subdirectories.")
+
+_file_search()
+_update_data()
 
 # READING FROM FILE ----------------------------------------------------------------------
 
@@ -104,8 +118,8 @@ def get_header_contents(header_name:str|int) -> list:
     Passing an integer to `to_header` will check for the index position.
     """
     if type(header_name) == int:
-        header_name = list(save_data.keys())[header_name]
-    return list(save_data[header_name].keys())
+        header_name = list(data.keys())[header_name]
+    return list(data[header_name].keys())
 
 def get_data_block_contents(header_name:str|int, data_block_name:str|int) -> list:
     """Gets all the data inside of the specified data block.
@@ -113,10 +127,10 @@ def get_data_block_contents(header_name:str|int, data_block_name:str|int) -> lis
     Passing an integer to either `to_header` or `to_data_block` will check for the index position.
     """
     if type(header_name) == int:
-        header_name = list(save_data.keys())[header_name]
+        header_name = list(data.keys())[header_name]
     if type(data_block_name) == int:
-        data_block_name = list(save_data[header_name].keys())[data_block_name]
-    return list(save_data[header_name][data_block_name].keys())
+        data_block_name = list(data[header_name].keys())[data_block_name]
+    return list(data[header_name][data_block_name].keys())
 
 def get_data_contents(header:str|int, data_block:str|int, data_name:str|int) -> str:
     """Gets the data from a specified data block in the specified header.
@@ -125,12 +139,12 @@ def get_data_contents(header:str|int, data_block:str|int, data_name:str|int) -> 
     """
     # use get header contents function and get data contents function
     if type(header) == int:
-        header = list(save_data.keys())[header]
+        header = list(data.keys())[header]
     if type(data_block) == int:
-        data_block = list(save_data[header].keys())[data_block]
+        data_block = list(data[header].keys())[data_block]
     if type(data_name) == int:
-        data_name = list(save_data[header][data_block].keys())[data_name]
-    return save_data[header][data_block][data_name]
+        data_name = list(data[header][data_block].keys())[data_name]
+    return data[header][data_block][data_name]
 
 # WRITING TO FILE ----------------------------------------------------------------------
 
