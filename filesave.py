@@ -1,4 +1,26 @@
-"""Manipulate text in files for saving, loading and reading."""
+"""Manipulate text in files for saving, loading and reading.
+
+Hierarchy system to store data in a text file.
+Group -> Subgroup -> Item -> Data
+
+Made by Sean Chan, 2025. All rights reserved.
+
+This module uses terms to refer to different parts of file saving and data.
+- Group: A group is a collection of subgroups. It is represented by a line starting and ending with an asterisk (*).
+- Subgroup: A subgroup is a collection of items. It is represented by a line ending with a colon (:).
+- Item: An item is a single piece of data. It is represented by a line with a name and _data_ separated by a pipe (|).
+- Data: Data is the value associated with an item. Types include str, int, float, list, dict, tuple, bool, and None.
+- Settings: Settings are special lines that start and end with parentheses (()). They are not part of the data structure but can be used for configuration.
+- File: A file is a text file that contains the groups, subgroups, items, and data. It is represented by a .txt file.
+- File System: The file system is the overall structure that manages the files and their contents. It includes functions for reading, writing, and manipulating the data.
+- Data point or Data set: Refer to a parent and a child relationship between the hierarchy of data. E.g. Data point: subgroup, Data set: group.
+
+Example Usage:
+- User data storage
+- Game save files
+- Configuration files
+- Storing stats of entities
+"""
 from typing_extensions import TypeAlias
 from os import walk, getcwd, path
 
