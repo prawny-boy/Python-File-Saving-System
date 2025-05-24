@@ -86,14 +86,15 @@ def get_file_contents(filename:str) -> list[str]:
         return contents
 
 class FileSaveSystem:
-    def __init__(self, filename:str, system_type:str):
-        self.data = self.all_data(filename)[0]
+    """File save system for storing and manipulating data in a text file."""
+    def __init__(self, filename:str, system_type:str = "read-write"):
         self.filename = filename
         self.system_type = system_type
+        self.data = self.load()[0]
 
-    def all_data(self, filename:str) -> dict[str, dict[str, dict[str, _Data]]]:
+    def load(self) -> dict[str, dict[str, dict[str, _Data]]]:
         """Gets all the data in the save file and outputs it as a dictionary."""
-        contents = get_file_contents(filename)
+        contents = get_file_contents(self.filename)
         data:dict[str, dict[str, dict[str, list]]] = {} # first dict is the group and the second is the data blocks
         settings_string = ""
         current_group = None
@@ -127,13 +128,10 @@ class FileSaveSystem:
                         data[current_group][current_subgroup][split_data[0]] = split_data[1:]
 
         return (data, settings_string)
-
-    def update_file_contents(self, contents:list[str]):
+    def save(self):
         """Updates the contents of the specified file."""
         if self.system_type == 'read-only':
             raise FileReadOnly
-        with open(self.filename, 'w') as file:
-            file.write('\n'.join(contents))
 
     def content(self, group_name:str|int = None, subgroup_name:str|int = None, item_name:str|int = None) -> list[str]|_Data:
         """Gets the contents of the specified data set.
@@ -253,7 +251,4 @@ class FileSaveSystem:
         pass
     def update_data(self, in_group:str|int, in_subgroup:str|int, in_item:str|int, new_data:_Data):
         """Updates the specified data to the new one."""
-        pass
-    def save(self, filename:str):
-        """Writes all the data into the specified file."""
         pass
