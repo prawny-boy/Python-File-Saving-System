@@ -99,7 +99,6 @@ def get_file_contents(filename:str) -> list[str]:
 def split_iterables(data: _Data) -> list[str]:
     """Splits data into a list of strings, while keeping track of nesting."""
     iterables_prefixes = (DATA_WRAPPERS[list], DATA_WRAPPERS[dict], DATA_WRAPPERS[tuple])
-    #{[],[],{},{()}} 
     lists, dicts, tuples = 0, 0, 0
     last_sep = 0
     split_iterable = []
