@@ -209,31 +209,46 @@ class FileSaveSystem:
         """
         return self.contains(name_to_check, group_name, subgroup_name, item_name)
 
-    def new(self, group_name:str, subgroup_name:str = None, item_name:str = None, data:_Data = None):
+    def new(self, group_name:str, subgroup_name:str|int = None, item_name:str|int = None, data:_Data = None):
         """Creates a new data point in the specified group, subgroup, and item.
         
         If `subgroup_name` or `item_name` is not specified, it will create a new subgroup or item respectively.
         Passing an integer to either `to_group` or `to_subgroup` will check for the index position.
+        If the data point already exists, it will overwrite the existing data.
         """
-        pass
+        if subgroup_name is None:
+            self.data[group_name] = {}
+        if type(subgroup_name) == int:
+            subgroup_name = list(self.data[group_name].keys())[subgroup_name]
+        if item_name is None:
+            if group_name not in self.data:
+                self.data[group_name] = {}
+            self.data[group_name][subgroup_name] = {}
+        if type(item_name) == int:
+            item_name = list(self.data[group_name][subgroup_name].keys())[item_name]
+        if data is None:
+            self.data[group_name][subgroup_name][item_name] = None
+        else:
+            self.data[group_name][subgroup_name][item_name] = data
     def new_group(self, group_name:str):
         """Creates a new group that can be used to retrieve following information."""
-        pass
+        self.new(group_name)
     def new_subgroup(self, subgroup_name:str, to_group:str|int):
         """Creates a new data block that stores types of data inside of it.
 
         Passing an integer to `to_group` will automatically detect for a group at that index position.
         """
-        pass
+        self.new(to_group, subgroup_name)
     def new_item(self, item_name:str, data:_Data, to_group:str|int, to_subgroup:str|int):
         """Adds new data and item into the specified subgroup.
 
         Supported data types: `str`, `int`, `float`, `list`, `dict`, `tuple`, `bool`
         """
         try:
-            prefix = TYPE_PREFIXES[type(data)]
+            TYPE_PREFIXES[type(data)]
         except KeyError:
             raise TypeError(f"Unsupported data type: {type(data)}")
+        self.new(to_group, to_subgroup, item_name, data)
 
     def update(self, old_group:str|int, new_group:str, old_subgroup:str|int = None, new_subgroup:str = None, old_item:str|int = None, new_item:str|int = None, new_data:_Data = None):
         """Updates the specified data point to the new one."""
