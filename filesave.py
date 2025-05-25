@@ -34,15 +34,20 @@ __all__ = [
     'update_subgroup'
 ]
 
-TYPE_PREFIXES:dict[type|None, str] = {
-    str: '"',
-    int: '#',
-    float: '~',
-    list: '&',
-    dict: '%',
-    tuple: '|',
-    bool: '?',
-    None: '.'
+DATA_WRAPPERS:dict[type|None, str] = {
+    str: ['"', '"'],
+    int: ['#', '#'],
+    float: ['~', '~'],
+    list: ['[', ']'],
+    dict: ['{', '}'],
+    tuple: ['(', ')'],
+    bool: ['?', '?'],
+    None: ['.', '.'],
+    "settings": ['<', '>'],
+    "group": ['*', '*'],
+    "subgroup": [':', ':'],
+    "item": ['|', '|'],
+    "ignore": ['!', '!']
 }
 
 _Data: TypeAlias = str|int|float|list|dict|tuple|bool
@@ -58,6 +63,12 @@ class FileParsingError(Exception):
     def __init__(self, message="Error parsing file."):
         self.message = message
         super().__init__(self.message)
+
+def _check_string_for_wrappers(data:str, check_for_type:str|type|None) -> bool:
+    """Checks if the string data starts and ends with the correct wrappers."""
+    if data.startswith(DATA_WRAPPERS[check_for_type][0]) and data.endswith(DATA_WRAPPERS[check_for_type][1]):
+        return True
+    return False
 
 def file_search():
     """Searches for text files in the current directory and its subdirectories, setting the save file to the first one found."""
@@ -85,12 +96,62 @@ def get_file_contents(filename:str) -> list[str]:
         contents = contents.splitlines()
         return contents
 
+def split_iterables(data: _Data) -> list[str]:
+    """Splits data into a list of strings, while keeping track of nesting."""
+    iterables_prefixes = (DATA_WRAPPERS[list], DATA_WRAPPERS[dict], DATA_WRAPPERS[tuple])
+    #{[],[],{},{()}} 
+    lists, dicts, tuples = 0, 0, 0
+    last_sep = 0
+    split_iterable = []
+    for i in range(len(data)):
+        char = data[i]
+        if char == iterables_prefixes[0][0]: lists += 1
+        elif char == iterables_prefixes[1][0]: dicts += 1
+        elif char == iterables_prefixes[2][0]: tuples += 1
+        elif char == iterables_prefixes[0][1]: lists -= 1
+        elif char == iterables_prefixes[1][1]: dicts -= 1
+        elif char == iterables_prefixes[2][1]: tuples -= 1
+        elif char == "," and lists == 0 and dicts == 0 and tuples == 0:
+            split_iterable.append(data[last_sep:i].strip())
+            last_sep = i + 1
+    return split_iterable + [data[last_sep:].strip()]
+
+def convert_data_by_prefix(data:str) -> _Data:
+    """Recursively converts prefixed string data to its appropriate type."""
+    if _check_string_for_wrappers(data, str):
+        return data[1:-1]
+    elif _check_string_for_wrappers(data, int):
+        return int(data[1:-1])
+    elif _check_string_for_wrappers(data, float):
+        return float(data[1:-1])
+    elif _check_string_for_wrappers(data, bool):
+        return data[1:-1].lower() == 'true'
+    elif _check_string_for_wrappers(data, None):
+        return None
+    elif _check_string_for_wrappers(data, list):
+        data = split_iterables(data[1:-1])
+        return list([convert_data_by_prefix(item) for item in data])
+    elif _check_string_for_wrappers(data, dict):
+        data = split_iterables(data[1:-1])
+        return {
+            convert_data_by_prefix(key): convert_data_by_prefix(value) 
+            for key, value in zip(data[0::2], data[1::2])
+        } # Handles nested dictionaries recursively
+    elif _check_string_for_wrappers(data, tuple):
+        data = split_iterables(data[1:-1])
+        return tuple(convert_data_by_prefix(item) for item in data)
+    else:
+        raise FileParsingError(f"Data '{data}' does not have a valid prefix or is in an incorrect format.")
+
 class FileSaveSystem:
     """File save system for storing and manipulating data in a text file."""
     def __init__(self, filename:str, system_type:str = "read-write"):
         self.filename = filename
         self.system_type = system_type
         self.data = self.load()[0]
+    def __str__(self):
+        """Returns a string representation of the file save system."""
+        return f"FileSaveSystem(filename={self.filename}, system_type={self.system_type}, data={self.data})"
 
     def load(self) -> dict[str, dict[str, dict[str, _Data]]]:
         """Gets all the data in the save file and outputs it as a dictionary."""
@@ -101,31 +162,30 @@ class FileSaveSystem:
         current_subgroup = None
         for line in contents:
                 line = line.strip()
-                if line.startswith('!') or line == "":
-                    # special cases
+                if _check_string_for_wrappers(line, "ignore"):
                     continue
-                if (line.startswith('(') and line.endswith(')')):
-                    # settings
+                if _check_string_for_wrappers(line, "settings"):
                     settings_string = line[1:-1]
-                elif line.startswith('*') and line.endswith('*'):
-                    # group
+                elif _check_string_for_wrappers(line, "group"):
                     current_group = line[1:-1]
                     data[current_group] = {}
-                elif line.endswith(':'):
-                    # data block
-                    current_subgroup = line[:-1]
+                elif _check_string_for_wrappers(line, "subgroup"):
+                    current_subgroup = line[1:-1]
                     data[current_group][current_subgroup] = {}
-                else:
-                    # data
+                elif _check_string_for_wrappers(line, "item"):
                     if current_group is None:
-                        raise FileParsingError(f"group not found or in incorrect format: {line}")
+                        raise FileParsingError(f"Group not found or in incorrect format: {line}")
                     if current_subgroup is None:
-                        raise FileParsingError(f"Data block not found or in incorrect format: {line}")
+                        raise FileParsingError(f"Subgroup not found or in incorrect format: {line}")
                     else:
-                        split_data = line.split("|")
-                        if len(split_data) < 2:
-                            raise FileParsingError(f"Data in incorrect format: {line}")
-                        data[current_group][current_subgroup][split_data[0]] = split_data[1:]
+                        item = line[1:-1]
+                        try:
+                            item, stored_data = item.split(":")
+                        except ValueError:
+                            raise FileParsingError(f"Item in incorrect format: {line}")
+                        item = convert_data_by_prefix(item.strip())
+                        stored_data = convert_data_by_prefix(stored_data.strip())
+                        data[current_group][current_subgroup][item] = stored_data
 
         return (data, settings_string)
     def save(self):
@@ -136,7 +196,6 @@ class FileSaveSystem:
     def content(self, group_name:str|int = None, subgroup_name:str|int = None, item_name:str|int = None) -> list[str]|_Data:
         """Gets the contents of the specified data set.
 
-        Notes:
         - If `group_name`, `subgroup_name`, or `data_name` is `None`, the function returns a list of available names at the corresponding level.
         - If an integer is provided for any of these parameters, it is treated as an index in the respective list.
         - Index-based retrieval assumes valid indices; out-of-range values may lead to errors.
@@ -211,10 +270,11 @@ class FileSaveSystem:
 
     def new(self, group_name:str, subgroup_name:str|int = None, item_name:str|int = None, data:_Data = None):
         """Creates a new data point in the specified group, subgroup, and item.
-        
-        If `subgroup_name` or `item_name` is not specified, it will create a new subgroup or item respectively.
-        Passing an integer to either `to_group` or `to_subgroup` will check for the index position.
-        If the data point already exists, it will overwrite the existing data.
+        Raises:
+            ValueError: If a required group or subgroup name is missing.
+        - If `subgroup_name` or `item_name` is not specified, it will create a new subgroup or item respectively.
+        - Passing an integer to either `to_group` or `to_subgroup` will check for the index position.
+        - If the data point already exists, it will overwrite the existing data.
         """
         if subgroup_name is None:
             self.data[group_name] = {}
@@ -229,6 +289,10 @@ class FileSaveSystem:
         if data is None:
             self.data[group_name][subgroup_name][item_name] = None
         else:
+            try:
+                DATA_WRAPPERS[type(data)]
+            except KeyError:
+                raise TypeError(f"Unsupported data type: {type(data)}")
             self.data[group_name][subgroup_name][item_name] = data
     def new_group(self, group_name:str):
         """Creates a new group that can be used to retrieve following information."""
@@ -244,24 +308,58 @@ class FileSaveSystem:
 
         Supported data types: `str`, `int`, `float`, `list`, `dict`, `tuple`, `bool`
         """
-        try:
-            TYPE_PREFIXES[type(data)]
-        except KeyError:
-            raise TypeError(f"Unsupported data type: {type(data)}")
         self.new(to_group, to_subgroup, item_name, data)
 
     def update(self, old_group:str|int, new_group:str, old_subgroup:str|int = None, new_subgroup:str = None, old_item:str|int = None, new_item:str|int = None, new_data:_Data = None):
-        """Updates the specified data point to the new one."""
-        pass
+        """Updates the specified data point to the new one.
+        Raises:
+            ValueError: If a required new group or subgroup name is missing.
+            ValueError: If attempting to create a duplicate group, subgroup, or item.
+            TypeError: If the provided new data type is unsupported.
+        - Renames or moves the specified group, subgroup, or item within the data structure.
+        - Converts integer indices to corresponding names where necessary.
+        - Ensures structural integrity by preventing duplicate names.
+        - If `new_data` is provided, updates the corresponding item with new content.
+        """
+        if type(old_group) == int:
+            old_group = list(self.data.keys())[old_group]
+        if old_subgroup is None:
+            if new_group is None:
+                raise ValueError("Cannot update group without specifying a new group name.")
+            if new_group in self.data.keys():
+                raise ValueError(f"Group '{new_group}' already exists. Cannot have duplicate group names.")
+            self.data[new_group] = self.data.pop(old_group, {})
+        if type(old_subgroup) == int:
+            old_subgroup = list(self.data[old_group].keys())[old_subgroup]
+        if old_item is None:
+            if new_subgroup is None:
+                raise ValueError("Cannot update subgroup without specifying a new subgroup name.")
+            if new_subgroup in self.data[old_group].keys():
+                raise ValueError(f"Subgroup '{new_subgroup}' already exists in group '{old_group}'. Cannot have duplicate subgroup names.")
+            self.data[new_group][new_subgroup] = self.data[old_group].pop(old_subgroup, {})
+        if type(old_item) == int:
+            old_item = list(self.data[old_group][old_subgroup].keys())[old_item]
+        if new_data is None:
+            if new_item is None:
+                raise ValueError("Cannot update item without specifying a new item name.")
+            if new_item in self.data[new_group][new_subgroup].keys():
+                raise ValueError(f"Item '{new_item}' already exists in subgroup '{new_subgroup}' of group '{new_group}'. Cannot have duplicate item names.")
+            self.data[new_group][new_subgroup][new_item] = self.data[old_group][old_subgroup].pop(old_item, None)
+        else:
+            try:
+                DATA_WRAPPERS[type(new_data)]
+            except KeyError:
+                raise TypeError(f"Unsupported data type: {type(new_data)}")
+            self.data[new_group][new_subgroup][new_item] = new_data
     def update_group(self, old_group:str|int, new_group:str):
         """Updates the specified group to the new one."""
-        pass
+        self.update(old_group, new_group)
     def update_subgroup(self, in_group:str|int, old_subgroup:str|int, new_subgroup:str):
         """Updates the specified subgroup to the new one."""
-        pass
+        self.update(in_group, None, old_subgroup, new_subgroup)
     def update_item(self, in_group:str|int, in_subgroup:str|int, old_item:str|int, new_item:str|int):
         """Updates the specified item content to the new one."""
-        pass
+        self.update(in_group, None, in_subgroup, None, old_item, new_item)
     def update_data(self, in_group:str|int, in_subgroup:str|int, in_item:str|int, new_data:_Data):
         """Updates the specified data to the new one."""
-        pass
+        self.update(in_group, None, in_subgroup, None, in_item, None, new_data)

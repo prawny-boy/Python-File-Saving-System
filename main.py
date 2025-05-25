@@ -1,3 +1,4 @@
 import filesave
 
-test = filesave.FileSaveSystem('tt.txt', 'read-only')
+test = filesave.FileSaveSystem('test.txt', 'read-only')
+print(test)
