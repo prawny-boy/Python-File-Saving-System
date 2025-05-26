@@ -42,7 +42,6 @@ DATA_WRAPPERS:dict[type|None, str] = {
     dict: ['{', '}'],
     tuple: ['(', ')'],
     bool: ['?', '?'],
-    None: ['.', '.'],
     "settings": ['<', '>'],
     "group": ['*', '*'],
     "subgroup": [':', ':'],
@@ -64,11 +63,18 @@ class FileParsingError(Exception):
         self.message = message
         super().__init__(self.message)
 
-def _check_string_for_wrappers(data:str, check_for_type:str|type|None) -> bool:
+def _check_string_for_wrappers(data:str, check_for_type:str|type) -> bool:
     """Checks if the string data starts and ends with the correct wrappers."""
     if data.startswith(DATA_WRAPPERS[check_for_type][0]) and data.endswith(DATA_WRAPPERS[check_for_type][1]):
         return True
     return False
+
+def _add_wrappers(data:str, data_type:type|str) -> str:
+    """Adds the appropriate wrappers to the data based on its type."""
+    try:
+        return f"{DATA_WRAPPERS[data_type][0]}{data}{DATA_WRAPPERS[data_type][1]}"
+    except KeyError:
+        raise TypeError(f"Unsupported data type: {data_type}.")
 
 def file_search():
     """Searches for text files in the current directory and its subdirectories, setting the save file to the first one found."""
@@ -115,7 +121,7 @@ def split_iterables(data: _Data) -> list[str]:
             last_sep = i + 1
     return split_iterable + [data[last_sep:].strip()]
 
-def convert_data_by_prefix(data:str) -> _Data:
+def convert_data(data:str) -> _Data:
     """Recursively converts prefixed string data to its appropriate type."""
     if _check_string_for_wrappers(data, str):
         return data[1:-1]
@@ -125,22 +131,37 @@ def convert_data_by_prefix(data:str) -> _Data:
         return float(data[1:-1])
     elif _check_string_for_wrappers(data, bool):
         return data[1:-1].lower() == 'true'
-    elif _check_string_for_wrappers(data, None):
-        return None
     elif _check_string_for_wrappers(data, list):
         data = split_iterables(data[1:-1])
-        return list([convert_data_by_prefix(item) for item in data])
+        return list([convert_data(item) for item in data])
     elif _check_string_for_wrappers(data, dict):
         data = split_iterables(data[1:-1])
         return {
-            convert_data_by_prefix(key): convert_data_by_prefix(value) 
+            convert_data(key): convert_data(value) 
             for key, value in zip(data[0::2], data[1::2])
         } # Handles nested dictionaries recursively
     elif _check_string_for_wrappers(data, tuple):
         data = split_iterables(data[1:-1])
-        return tuple(convert_data_by_prefix(item) for item in data)
+        return tuple(convert_data(item) for item in data)
     else:
         raise FileParsingError(f"Data '{data}' does not have a valid prefix or is in an incorrect format.")
+
+def format_data(data:_Data) -> str:
+    """Recursively formats data to its prefixed string representation."""
+    if isinstance(data, dict):
+        lines = []
+        for key, value in data.items():
+            lines.append(format_data(key))
+            lines.append(format_data(value))
+        return _add_wrappers(', '.join(lines), dict)
+    elif isinstance(data, list):
+        return _add_wrappers(', '.join(format_data(item) for item in data), list)
+    elif isinstance(data, tuple):
+        return _add_wrappers(', '.join(format_data(item) for item in data), tuple)
+    elif isinstance(data, (int, float, str, bool)):
+        return _add_wrappers(str(data), type(data))
+    else:
+        raise FileParsingError(f"Unsupported data type: {type(data)}")
 
 class FileSaveSystem:
     """File save system for storing and manipulating data in a text file."""
@@ -182,15 +203,29 @@ class FileSaveSystem:
                             item, stored_data = item.split(":")
                         except ValueError:
                             raise FileParsingError(f"Item in incorrect format: {line}")
-                        item = convert_data_by_prefix(item.strip())
-                        stored_data = convert_data_by_prefix(stored_data.strip())
+                        item = convert_data(item.strip())
+                        stored_data = convert_data(stored_data.strip())
                         data[current_group][current_subgroup][item] = stored_data
 
         return (data, settings_string)
     def save(self):
-        """Updates the contents of the specified file."""
+        """Recursively updates the contents of the file from the data dictionary."""
         if self.system_type == 'read-only':
             raise FileReadOnly
+        
+        writing_data = []
+        for group in self.data:
+            writing_data.append(_add_wrappers(group, "group"))
+            for subgroup in self.data[group]:
+                writing_data.append(_add_wrappers(subgroup, "subgroup"))
+                for item in self.data[group][subgroup]:
+                    if isinstance(item, (dict, list, tuple)):
+                        raise TypeError(f"Item name '{item}' cannot be a key.")
+                    writing_data.append(_add_wrappers(f"{format_data(item)}:{format_data(self.data[group][subgroup][item])}", "item"))
+        
+        with open(self.filename, 'w') as file:
+            for line in writing_data:
+                file.write(line + '\n')
 
     def content(self, group_name:str|int = None, subgroup_name:str|int = None, item_name:str|int = None) -> list[str]|_Data:
         """Gets the contents of the specified data set.
@@ -335,21 +370,21 @@ class FileSaveSystem:
                 raise ValueError("Cannot update subgroup without specifying a new subgroup name.")
             if new_subgroup in self.data[old_group].keys():
                 raise ValueError(f"Subgroup '{new_subgroup}' already exists in group '{old_group}'. Cannot have duplicate subgroup names.")
-            self.data[new_group][new_subgroup] = self.data[old_group].pop(old_subgroup, {})
+            self.data[old_group][new_subgroup] = self.data[old_group].pop(old_subgroup, {})
         if type(old_item) == int:
             old_item = list(self.data[old_group][old_subgroup].keys())[old_item]
         if new_data is None:
             if new_item is None:
                 raise ValueError("Cannot update item without specifying a new item name.")
-            if new_item in self.data[new_group][new_subgroup].keys():
+            if new_item in self.data[old_group][old_subgroup].keys():
                 raise ValueError(f"Item '{new_item}' already exists in subgroup '{new_subgroup}' of group '{new_group}'. Cannot have duplicate item names.")
-            self.data[new_group][new_subgroup][new_item] = self.data[old_group][old_subgroup].pop(old_item, None)
+            self.data[old_group][old_subgroup][new_item] = self.data[old_group][old_subgroup].pop(old_item, None)
         else:
             try:
                 DATA_WRAPPERS[type(new_data)]
             except KeyError:
                 raise TypeError(f"Unsupported data type: {type(new_data)}")
-            self.data[new_group][new_subgroup][new_item] = new_data
+            self.data[old_group][old_subgroup][old_item] = new_data
     def update_group(self, old_group:str|int, new_group:str):
         """Updates the specified group to the new one."""
         self.update(old_group, new_group)
