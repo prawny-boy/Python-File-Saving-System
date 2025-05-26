@@ -1,0 +1,8 @@
+<system_type:read-write, encoded:False>
+*UserPreferences*
+:Display:
+|"Brightness":#80#|
+|"Theme":"Dark"|
+:Sound:
+|"Volume":#50#|
+|"Muted":?False?|

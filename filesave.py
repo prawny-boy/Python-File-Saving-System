@@ -207,7 +207,7 @@ def format_data(data:_Data) -> str:
     elif isinstance(data, (int, float, str, bool)):
         return _add_wrappers(str(data), type(data))
     else:
-        raise FileParsingError(f"Unsupported data type: {type(data)}")
+        raise FileParsingError(f"Unsupported data type: {type(data)} {data}")
 
 class FileSaveSystem:
     """File save system for storing and manipulating data in a text file.
@@ -370,19 +370,24 @@ class FileSaveSystem:
         - Passing an integer to either `to_group` or `to_subgroup` will check for the index position.
         - If the data point already exists, it will overwrite the existing data.
         """
-        if subgroup_name is None:
+        if group_name not in self.data:
             self.data[group_name] = {}
-        if type(subgroup_name) == int:
-            subgroup_name = list(self.data[group_name].keys())[subgroup_name]
-        if item_name is None:
-            if group_name not in self.data:
-                self.data[group_name] = {}
-            self.data[group_name][subgroup_name] = {}
-        if type(item_name) == int:
-            item_name = list(self.data[group_name][subgroup_name].keys())[item_name]
-        if data is None:
-            self.data[group_name][subgroup_name][item_name] = None
-        else:
+        if subgroup_name is not None:
+            if isinstance(subgroup_name, int):
+                subgroup_keys = list(self.data[group_name].keys())
+                if 0 <= subgroup_name < len(subgroup_keys):
+                    subgroup_name = subgroup_keys[subgroup_name]
+                else:
+                    raise IndexError(f"Subgroup index {subgroup_name} out of range.")
+            if subgroup_name not in self.data[group_name]:
+                self.data[group_name][subgroup_name] = {}
+        if item_name is not None:
+            if isinstance(item_name, int):
+                item_keys = list(self.data[group_name][subgroup_name].keys())
+                if 0 <= item_name < len(item_keys):
+                    item_name = item_keys[item_name]
+                else:
+                    raise IndexError(f"Item index {item_name} out of range.")
             try:
                 DATA_WRAPPERS[type(data)]
             except KeyError:
