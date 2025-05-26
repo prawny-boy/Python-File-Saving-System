@@ -5,6 +5,21 @@ Group -> Subgroup -> Item -> Data
 
 Made by Sean Chan, 2025. All rights reserved.
 
+Encoding and Decoding:
+This module supports encoding and decoding of data in text files.
+Base64 encoding is used to encode the contents of the file, allowing for safe storage of complex data types.
+The contents of the file can be encoded or decoded based on the settings provided.
+
+Avaliable types of data:
+- str: String data, wrapped in double quotes (e.g., "Hello World").
+- int: Integer data, wrapped in hash symbols (e.g., #42#).
+- float: Floating-point data, wrapped in tildes (e.g., ~3.14~).
+- list: List data, wrapped in square brackets (e.g., [1, 2, 3]).
+- dict: Dictionary data, wrapped in curly brackets (e.g., {"key": "value"}).
+- tuple: Tuple data, wrapped in parentheses (e.g., (1, 2, 3)).
+- bool: Boolean data, wrapped in question marks (e.g., ?True?).
+- Comments: Ignored and wrapped in exclamation marks. (e.g., !This is a comment!) Note: Comments are only visible without encoding.
+
 This module uses terms to refer to different parts of file saving and data.
 - Group: A group is a collection of subgroups. It is represented by a line starting and ending with an asterisk (*).
 - Subgroup: A subgroup is a collection of items. It is represented by a line ending with a colon (:).
@@ -23,6 +38,7 @@ Example Usage:
 """
 from typing_extensions import TypeAlias
 from os import walk, getcwd, path
+from base64 import b64encode as encode, b64decode as decode
 
 __all__ = [
     'new_group',
@@ -95,12 +111,42 @@ def file_search():
         print("WARNING: No text file found in the current directory or subdirectories.")
         return ""
 
-def get_file_contents(filename:str) -> list[str]:
-        """Gets the contents of the specified file."""
-        with open(filename, 'r') as file:
-            contents = file.read()
-        contents = contents.splitlines()
-        return contents
+def get_file_contents(filename:str) -> list[str]|dict[str, str]:
+    """Gets the contents of the specified file."""
+    with open(filename, 'r') as file:
+        contents = file.read()
+    file_lines = contents.splitlines()
+    settings = {}
+    for line in range(len(file_lines)):
+        if _check_string_for_wrappers(file_lines[line], "settings"):
+            settings = file_lines[line][1:-1].split(', ')
+            settings = {setting.split(':')[0].strip(): setting.split(':')[1].strip() for setting in settings}
+            file_lines.pop(line)
+            break
+    if "encoded" not in settings.keys() or settings["encoded"] == "True":
+        try: 
+            for line in range(len(file_lines)):
+                new_lines = decode(file_lines[line].encode()).decode().splitlines()
+                file_lines.pop(line)
+                file_lines.extend(new_lines)
+        except:
+            print(f"WARNING: Failed to decode contents of {filename}.")
+    return file_lines, settings if 'settings' in locals() else {}
+
+def save_file_contents(filename:str, contents:list[str], encoded:bool = False, settings:dict[str, str] = {}, ignore:list[str] = []):
+    """Saves the contents to the specified file."""
+    if ignore:
+        for ignore_item in ignore:
+            contents = [_add_wrappers(ignore_item, "ignore")] + contents
+    if encoded:
+        contents = encode('\n'.join(contents).encode()).decode()
+    else:
+        contents = '\n'.join(contents)
+    with open(filename, 'w') as file:
+        if settings:
+            settings_string = _add_wrappers(', '.join(f"{key}:{value}" for key, value in settings.items()), "settings")
+            file.write(settings_string + '\n')
+        file.write(contents)
 
 def split_iterables(data: _Data) -> list[str]:
     """Splits data into a list of strings, while keeping track of nesting."""
@@ -165,49 +211,58 @@ def format_data(data:_Data) -> str:
 
 class FileSaveSystem:
     """File save system for storing and manipulating data in a text file."""
-    def __init__(self, filename:str, system_type:str = "read-write"):
+    def __init__(self, filename:str, system_type:str = "read-write", encoded:bool = False, override:bool = False):
         self.filename = filename
-        self.system_type = system_type
-        self.data = self.load()[0]
+        self.data, self.system_type, self.encoded, self.ignore = self.load()
+        if self.system_type is None or override:
+            self.system_type = system_type
+        if self.encoded is None or override:
+            self.encoded = encoded
     def __str__(self):
         """Returns a string representation of the file save system."""
-        return f"FileSaveSystem(filename={self.filename}, system_type={self.system_type}, data={self.data})"
+        return f"FileSaveSystem(filename={self.filename}, system_type={self.system_type}, encoded={self.encoded}, data={self.data})"
 
     def load(self) -> dict[str, dict[str, dict[str, _Data]]]:
         """Gets all the data in the save file and outputs it as a dictionary."""
-        contents = get_file_contents(self.filename)
+        contents, settings = get_file_contents(self.filename)
         data:dict[str, dict[str, dict[str, list]]] = {} # first dict is the group and the second is the data blocks
-        settings_string = ""
+        ignore = []
         current_group = None
         current_subgroup = None
         for line in contents:
-                line = line.strip()
-                if _check_string_for_wrappers(line, "ignore"):
-                    continue
-                if _check_string_for_wrappers(line, "settings"):
-                    settings_string = line[1:-1]
-                elif _check_string_for_wrappers(line, "group"):
-                    current_group = line[1:-1]
-                    data[current_group] = {}
-                elif _check_string_for_wrappers(line, "subgroup"):
-                    current_subgroup = line[1:-1]
-                    data[current_group][current_subgroup] = {}
-                elif _check_string_for_wrappers(line, "item"):
-                    if current_group is None:
-                        raise FileParsingError(f"Group not found or in incorrect format: {line}")
-                    if current_subgroup is None:
-                        raise FileParsingError(f"Subgroup not found or in incorrect format: {line}")
-                    else:
-                        item = line[1:-1]
-                        try:
-                            item, stored_data = item.split(":")
-                        except ValueError:
-                            raise FileParsingError(f"Item in incorrect format: {line}")
-                        item = convert_data(item.strip())
-                        stored_data = convert_data(stored_data.strip())
-                        data[current_group][current_subgroup][item] = stored_data
-
-        return (data, settings_string)
+            line = line.strip()
+            if _check_string_for_wrappers(line, "ignore"):
+                ignore.append(line[1:-1])
+            elif _check_string_for_wrappers(line, "group"):
+                current_group = line[1:-1]
+                data[current_group] = {}
+            elif _check_string_for_wrappers(line, "subgroup"):
+                current_subgroup = line[1:-1]
+                data[current_group][current_subgroup] = {}
+            elif _check_string_for_wrappers(line, "item"):
+                if current_group is None:
+                    raise FileParsingError(f"Group not found or in incorrect format: {line}")
+                if current_subgroup is None:
+                    raise FileParsingError(f"Subgroup not found or in incorrect format: {line}")
+                else:
+                    item = line[1:-1]
+                    try:
+                        item, stored_data = item.split(":")
+                    except ValueError:
+                        raise FileParsingError(f"Item in incorrect format: {line}")
+                    item = convert_data(item.strip())
+                    stored_data = convert_data(stored_data.strip())
+                    data[current_group][current_subgroup][item] = stored_data
+        
+        if 'system_type' in settings:
+            system_type = settings['system_type']
+        else:
+            system_type = None
+        if 'encoded' in settings:
+            encoded = settings['encoded'].lower() == 'true'
+        else:
+            encoded = None
+        return (data, system_type, encoded, ignore)
     def save(self):
         """Recursively updates the contents of the file from the data dictionary."""
         if self.system_type == 'read-only':
@@ -223,9 +278,7 @@ class FileSaveSystem:
                         raise TypeError(f"Item name '{item}' cannot be a key.")
                     writing_data.append(_add_wrappers(f"{format_data(item)}:{format_data(self.data[group][subgroup][item])}", "item"))
         
-        with open(self.filename, 'w') as file:
-            for line in writing_data:
-                file.write(line + '\n')
+        save_file_contents(self.filename, writing_data, self.encoded, {"system_type": self.system_type, "encoded": self.encoded}, self.ignore)
 
     def content(self, group_name:str|int = None, subgroup_name:str|int = None, item_name:str|int = None) -> list[str]|_Data:
         """Gets the contents of the specified data set.
