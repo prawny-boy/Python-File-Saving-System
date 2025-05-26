@@ -1,13 +1,2 @@
-<system_type:read-write, encoded:False>
-*group*
-:subgroup:
-|"item":"data"|
-*testing*
-:types:
-|"str":"1"|
-|"int":#1#|
-|"float":~1.2~|
-|"list":[#1#, [#2#, #3#]]|
-|"dict":{#1#, {#3#, "3", #4#, "4"}, #2#, "2"}|
-|"tuple":(#1#, (#2#, #3#))|
-|"bool":?True?|
+<system_type:read-write, encoded:True>
+Kmdyb3VwKgo6c3ViZ3JvdXA6CnwiaXRlbSI6ImRhdGEifAoqdGVzdGluZyoKOnR5cGVzOgp8InN0ciI6IjEifAp8ImludCI6IzEjfAp8ImZsb2F0Ijp+MS4yfnwKfCJsaXN0IjpbIzEjLCBbIzIjLCAjMyNdXXwKfCJkaWN0Ijp7IzEjLCB7IzMjLCAiMyIsICM0IywgIjQifSwgIzIjLCAiMiJ9fAp8InR1cGxlIjooIzEjLCAoIzIjLCAjMyMpKXwKfCJib29sIjo/VHJ1ZT98

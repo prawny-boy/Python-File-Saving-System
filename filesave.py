@@ -210,7 +210,14 @@ def format_data(data:_Data) -> str:
         raise FileParsingError(f"Unsupported data type: {type(data)}")
 
 class FileSaveSystem:
-    """File save system for storing and manipulating data in a text file."""
+    """File save system for storing and manipulating data in a text file.
+    
+    Parameters:
+        filename (str): The name of the file to save the data to.
+        system_type (str): The type of file system, either "read-write" or "read-only". Defaults to "read-write".
+        encoded (bool): Whether the file contents should be encoded. Defaults to False.
+        override (bool): Whether to override the existing system type and encoded settings. Defaults to False.
+    """
     def __init__(self, filename:str, system_type:str = "read-write", encoded:bool = False, override:bool = False):
         self.filename = filename
         self.data, self.system_type, self.encoded, self.ignore = self.load()

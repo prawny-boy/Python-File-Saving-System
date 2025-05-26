@@ -1,5 +1,5 @@
 import filesave
 
-test = filesave.FileSaveSystem('test.txt', 'read-write', encoded=False, override=True)
+test = filesave.FileSaveSystem('test.txt')
 print(test)
 test.save()
