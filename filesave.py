@@ -229,7 +229,7 @@ class FileSaveSystem:
         """Returns a string representation of the file save system."""
         return f"FileSaveSystem(filename={self.filename}, system_type={self.system_type}, encoded={self.encoded}, data={self.data})"
 
-    def load(self) -> dict[str, dict[str, dict[str, _Data]]]:
+    def load(self):
         """Gets all the data in the save file and outputs it as a dictionary."""
         contents, settings = get_file_contents(self.filename)
         data:dict[str, dict[str, dict[str, list]]] = {} # first dict is the group and the second is the data blocks
@@ -287,7 +287,7 @@ class FileSaveSystem:
         
         save_file_contents(self.filename, writing_data, self.encoded, {"system_type": self.system_type, "encoded": self.encoded}, self.ignore)
 
-    def content(self, group_name:str|int = None, subgroup_name:str|int = None, item_name:str|int = None) -> list[str]|_Data:
+    def content(self, group_name:str|int = None, subgroup_name:str|int = None, item_name:str|int = None, return_keys:bool = False) -> list[str]|_Data:
         """Gets the contents of the specified data set.
 
         - If `group_name`, `subgroup_name`, or `data_name` is `None`, the function returns a list of available names at the corresponding level.
@@ -295,47 +295,56 @@ class FileSaveSystem:
         - Index-based retrieval assumes valid indices; out-of-range values may lead to errors.
         """
         if group_name == None:
-            return list(self.data.keys())
+            if return_keys:
+                return list(self.data.keys())
+            else:
+                return self.data
         if type(group_name) == int:
             group_name = list(self.data.keys())[group_name]
         if subgroup_name == None:
-            return list(self.data[group_name].keys())
+            if return_keys:
+                return list(self.data[group_name].keys())
+            else:
+                return self.data[group_name]
         if type(subgroup_name) == int:
             subgroup_name = list(self.data[group_name].keys())[subgroup_name]
         if item_name == None:
-            return list(self.data[group_name][subgroup_name].keys())
+            if return_keys:
+                return list(self.data[group_name][subgroup_name].keys())
+            else:
+                return self.data[group_name][subgroup_name]
         if type(item_name) == int:
             item_name = list(self.data[group_name][subgroup_name].keys())[item_name]
         return self.data[group_name][subgroup_name][item_name]
-    def file_content(self):
+    def file_content(self, return_keys:bool = False):
         """Gets the groups in the file."""
-        return self.content()
-    def group_content(self, group_name:str|int) -> list:
+        return self.content(return_keys=return_keys)
+    def group_content(self, group_name:str|int, return_keys:bool = False) -> list:
         """Gets the subgroups inside of the specified group.
         
         Passing an integer to `group_name` will check for the index position.
         """
-        return self.content(group_name)
-    def subgroup_content(self, group_name:str|int, subgroup_name:str|int) -> list:
+        return self.content(group_name, return_keys=return_keys)
+    def subgroup_content(self, group_name:str|int, subgroup_name:str|int, return_keys:bool = False) -> list:
         """Gets all the data inside of the specified subgroup.
         
         Passing an integer to either `group_name` or `subgroup_name` will check for the index position.
         """
-        return self.content(group_name, subgroup_name)
-    def item_content(self, group_name:str|int, subgroup_name:str|int, item_name:str|int) -> str:
+        return self.content(group_name, subgroup_name, return_keys=return_keys)
+    def item_content(self, group_name:str|int, subgroup_name:str|int, item_name:str|int, return_keys:bool = False) -> str:
         """Gets the item from a specified data block in the specified group.
 
         Passing an integer to either `group_name`, `subgroup_name` or `item_name` will check for the index position.
         """
         # use get group contents function and get data contents function
-        return self.content(group_name, subgroup_name, item_name)
+        return self.content(group_name, subgroup_name, item_name, return_keys=return_keys)
 
     def contains(self, name_to_check:str, group_name:str|int = None, subgroup_name:str|int = None, item_name:str|int = None) -> bool:
         """Checks if the specified data point exists inside of the data set specified.
 
         Uses the `content` method to retrieve the list of available entries.
         """
-        content = self.content(group_name, subgroup_name, item_name)
+        content = self.content(group_name, subgroup_name, item_name, return_keys=True)
         return name_to_check in content
     def file_contains(self, name_to_check:str) -> bool:
         """Checks if the group specified exists inside of the file.

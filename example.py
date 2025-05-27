@@ -23,5 +23,4 @@ theme_setting = config_system.item_content("UserPreferences", "Display", "Theme"
 print(f"Selected Theme: {theme_setting}")
 
 sound_settings = config_system.subgroup_content("UserPreferences", "Sound")
-sound_settings_dict = {setting: config_system.item_content("UserPreferences", "Sound", setting) for setting in sound_settings}
-print(f"Sound Preferences: {sound_settings_dict}")
+print(f"Sound Preferences: {sound_settings}")
